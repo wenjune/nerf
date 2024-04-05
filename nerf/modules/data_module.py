@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 11:47:19
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-05 00:30:23
+LastEditTime: 2024-04-05 08:16:16
 FilePath: data_module.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -172,11 +172,8 @@ class NerfDataset(Dataset):
         ray_origins = ray_origins[select_inds]
         image_pixels = image_pixels[select_inds]
         
-        return {
-            'dirs': ray_dirs,
-            'oris': ray_origins,
-            'pixels': image_pixels,
-        }
+        return ray_dirs, ray_origins, image_pixels
+        
         
      
     # pixel to world coords
@@ -206,7 +203,7 @@ class DataModule(pl.LightningDataModule):
         self.num_works = config.nworks
         
         
-    def setup(self):
+    def setup(self, stage: str = None):
         
         self.train_data = NerfDataset(
             root=self.root,
