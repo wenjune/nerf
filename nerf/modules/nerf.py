@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 16:45:44
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-05 14:28:08
+LastEditTime: 2024-04-07 00:48:00
 FilePath: nerf.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -33,26 +33,21 @@ class FourierEmbedder(nn.Module):
         
     def forward(
         self,
-        x: TensorType['bs', 3, float]  # [bs, 3(x,y,z)]
+        x: TensorType['nrays', 'nsamples', 3, float],
     ):
         
         if not self.fourier:
             
             return x
         
-        # 生成频率系数
-        freqs = 2.0 ** torch.arange(self.embed_dim, dtype=torch.float32, device=x.device)
-        # 对每个位置维度应用正余弦编码
-        encoded_x = [torch.sin(freqs * x[:, :, None]), torch.cos(freqs * x[:, :, None])]  # [bs, 3, embed_dim]
-        # 拼接正余弦编码
-        encoded_x = torch.cat(encoded_x, dim=-1)  # [bs, 3, 2 * embed_dim]
-        encoded_x = encoded_x.view(x.shape[0], -1)  # [bs, 3 * 2 * embed_dim]
-        encoded_x = torch.cat([x, encoded_x], dim=-1)  # [bs, 3 * (2 * embed_dim+1)]
+        res = [x]
+        for i in range(self.embed_dim):
+            for fn in [torch.sin, torch.cos]:
+                res.append(fn((2.0 ** i) * x))
         
-        return encoded_x
-        
-        
-        
+        return torch.cat(res, dim=-1)
+            
+          
 class MLP(nn.Module):
     
     def __init__(self, dim, depth) -> None:
@@ -111,12 +106,12 @@ class NeRF(nn.Module):
         self.in_dim = (pe_dim*2+1)*3 if fourier else 3
         self.view_dim = (view_dim*2+1)*3 if view_depend else 4
         
-        self.in_layer = nn.Linear(pe_dim, dims)
-        self.middle_layer = nn.Linear(dims+pe_dim, dims)
+        self.in_layer = nn.Linear(self.in_dim, dims)
+        self.middle_layer = nn.Linear(dims+self.in_dim, dims)
         
         self.sigma_head = nn.Linear(dims, 1)
         
-        self.head_layer = nn.Linear(dims+view_dim, dims//2)
+        self.head_layer = nn.Linear(dims+self.view_dim, dims//2)
         
         self.rgb_proj = nn.Linear(dims//2, 3)
         
@@ -125,16 +120,24 @@ class NeRF(nn.Module):
         self.second_mlp = MLP(dim=dims, depth=mlp_depth)
         
     
-    def forward(self, x, view_dirs):
+    def forward(
+        self,
+        x: TensorType['nrays', 'nsamples', 3, float],
+        view_dirs: TensorType['nrays', 3, float]=None,
+    ):
         
-        view_dirs = view_dirs[:, None].expand(x.shape)
+        view_dirs = view_dirs[:, None, :].expand(x.shape)
         
-        x_embed = self.position_embedder(x)
+        # [nrays, nsamples, pos_embed_dim]
+        pos_embed = self.position_embedder(x)
+        # [nrays, nsamples, view_embed_dim]
         view_embed = self.view_embedder(view_dirs)
         
-        mlp_out = self.first_mlp(x_embed)
+        x_embed = self.in_layer(pos_embed).relu()
         
-        x = torch.cat([x_embed, mlp_out], dim=-1)
+        mlp_out = self.first_mlp(x_embed).relu()
+        
+        x = torch.cat([pos_embed, mlp_out], dim=-1)
         mlp_out = self.middle_layer(x).relu()
         
         mlp_out = self.second_mlp(mlp_out)
@@ -182,6 +185,12 @@ class PLNeRF(pl.LightningModule):
         
         ray_dirs, ray_origins, image_pixels = batch
         
+        # mixed images  [bs*nrays, 3]
+        ray_dirs = ray_dirs.view(-1, 3)
+        ray_origins = ray_origins.view(-1, 3)
+        image_pixels = image_pixels.view(-1, 3)
+        
+        # average sample z values for each ray
         sample_z_vals = torch.linspace(
             2., 6., self.coarse_sample, device=self.device
         ).view(1, self.coarse_sample)
@@ -226,6 +235,7 @@ class PLNeRF(pl.LightningModule):
         self.eval()
         with torch.no_grad():
             
+            # [nrays, 3]
             ray_dirs, ray_origins, image_pixels = batch
         
             coarse, fine = self(batch)
@@ -253,13 +263,23 @@ class PLNeRF(pl.LightningModule):
         return {"optimizer":self.optimizer}
     
     
-    def render_rays(self, ray_dirs, ray_oris, sample_z_vals, fine_sample, wb=True):
+    # @beartype
+    def render_rays(
+        self,
+        ray_dirs: TensorType['nrays', 3, float],
+        ray_oris: TensorType['nrays', 3, float],
+        sample_z_vals: TensorType[1, 'sample_z_vals', float],
+        fine_sample: int,
+        wb=True,
+    ):
         
-        # 
+        # [nrays, nsamples, 3], [nrays, nsamples]
         rays, z_vals = self.sample_rays(ray_dirs=ray_dirs, ray_oris=ray_oris, sample_z_values=sample_z_vals)
         view_dirs = self.sample_viewdirs(ray_dirs=ray_dirs)
         
-        sigma, rgb = self.coarse_model(rays, view_dirs)
+        # rays: [nrays, nsamples, 3]
+        # view_dirs: [nrays, 3]
+        rgb, sigma = self.coarse_model(rays, view_dirs)
         sigma = sigma.squeeze(dim=-1)
         coarse_rgb, coarse_depth, coarse_accm, coarse_weights = self.volume_rendering(
             sigma=sigma,
@@ -269,6 +289,7 @@ class PLNeRF(pl.LightningModule):
             wb=wb
         )
         
+        # sample from distribution
         z_vals_mid = 0.5 * (z_vals[..., 1:] + z_vals[..., :-1])
         z_samples = self.sample_pdf(z_vals_mid, weights=coarse_weights[..., 1:-1], nsamples=fine_sample, det=True)
         
@@ -278,7 +299,7 @@ class PLNeRF(pl.LightningModule):
         
         rays = ray_oris[..., None, :] + ray_dirs[..., None, :] * z_vals[..., :, None]
         
-        fine_sigma, fine_rgb = self.fine_model(rays, view_dirs)
+        fine_rgb, fine_sigma = self.fine_model(rays, view_dirs)
         
         fine_rgb, fine_depth, fine_accm, fine_weights = self.volume_rendering(
             sigma=fine_sigma,
@@ -292,23 +313,31 @@ class PLNeRF(pl.LightningModule):
         
     
     # generate sample points for each ray
-    def sample_rays(self, ray_oris, ray_dirs, sample_z_values):
+    # @beartype
+    def sample_rays(
+        self,
+        ray_oris: TensorType['nrays', 3, float],
+        ray_dirs: TensorType['nrays', 3, float],
+        sample_z_values: TensorType[1, 'sample_z_vals', float],
+    ):
         
-        n_ray = ray_oris.shape[1]
-        # [nrays, nsamples]
-        sample_z_values = sample_z_values.repeat(n_ray, 1)
+        n_rays = ray_oris.shape[0]
+        sample_z_values = repeat(sample_z_values, '1 nsamples -> nrays nsamples', nrays=n_rays)
         
         # r = o + td
-        # [nrays, 3]->[nrays, 1, 3] [nrays, nsamples, 1]  [bs, nrays, 3]
-        # TODO
-        rays = ray_oris[:, :, None, :] + ray_dirs[:, :, None, :] * sample_z_values[None, :, :, None]
+        # [nrays, nsamples, 3]
+        rays = ray_oris[:, None, :] + ray_dirs[:, None, :] * sample_z_values[..., None]
         
         return rays, sample_z_values
 
 
-    def sample_viewdirs(self, ray_dirs):
+    # @beartype
+    def sample_viewdirs(
+        self,
+        ray_dirs:TensorType['nrays', 3, float],
+    ):
         
-        return ray_dirs / torch.norm(ray_dirs, dim=-1)
+        return ray_dirs / torch.norm(ray_dirs, dim=-1, keepdim=True)
 
 
     def volume_rendering(self, sigma, rgb, z_vals, ray_dirs, wb=True):
@@ -344,9 +373,7 @@ class PLNeRF(pl.LightningModule):
 
     def sample_pdf(self, bins, weights, nsamples, det=True):
         
-        weights = weights + 1e-6
-        
-        pdf = weights / torch.sum(weights, -1, keepdim=True)
+        pdf = weights / torch.sum(weights+1e-6, -1, keepdim=True)
         
         cdf = torch.cumsum(pdf, -1)
         
@@ -354,19 +381,20 @@ class PLNeRF(pl.LightningModule):
         
         if det:
             u = torch.linspace(0., 1., steps=nsamples, device=self.device)
-            u = u.expand(list(cdf.shape[-1] + [nsamples]))
+            u = u.expand(list(cdf.shape[:-1]) + [nsamples])
             
         else:
-            u = torch.rand(list(cdf.shape[-1] + [nsamples]), device=self.device)
+            u = torch.rand(list(cdf.shape[:-1]) + [nsamples], device=self.device)
             
         u = u.contiguous()
         inds = torch.searchsorted(cdf, u, right=True)
         below = torch.max(torch.zeros_like(inds-1, device=self.device), inds-1)
-        above = torch.min((cdf.shape[-1]-1)*torch.ones_like(inds, device=self.device), inds)
+        above = torch.min((cdf.shape[-1]-1) * torch.ones_like(inds, device=self.device), inds)
         
         inds_g = torch.stack([below, above], dim=-1)
         
-        matched_shape = [inds_g.shape[0],inds_g.shape[1],inds_g.shape[2]]
+        # TODO
+        matched_shape = [inds_g.shape[0], inds_g.shape[1], inds_g.shape[2]]
         cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)
         bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)
         
@@ -379,5 +407,5 @@ class PLNeRF(pl.LightningModule):
         
         return samples
         
+
         
-    

@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 11:47:19
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-05 08:16:16
+LastEditTime: 2024-04-07 00:23:58
 FilePath: data_module.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -57,8 +57,9 @@ class DatasetProvider:
             self.images.append(image)
             self.poses.append(frame['transform_matrix'])
         
+        # [nimages, 4, 4]
         self.poses = np.stack(self.poses)
-        # [R G B alpha] for each image
+        # [nimages, height, width, 4(B G R A)]
         self.images = (np.stack(self.images) / 255.0).astype(np.float32)
         
         self.height = self.images.shape[1]
@@ -143,9 +144,12 @@ class NerfDataset(Dataset):
             all_ray_dirs.append(ray_dirs)
             all_ray_origins.append(ray_origins)
         
+        # [nimages, nrays, 3]
         self.all_ray_dirs = torch.stack(all_ray_dirs)
         self.all_ray_origins = torch.stack(all_ray_origins)
         self.images = torch.FloatTensor(self.images).view(self.num_images, -1, 3)
+        
+        self.name = 'nerf synthetic data provider'
         
     
     def __len__(self):
@@ -155,16 +159,20 @@ class NerfDataset(Dataset):
     def __getitem__(self, index):
         
         self.n_iter += 1
+        
+        # [nrays, 3]
         ray_dirs = self.all_ray_dirs[index]
         ray_origins = self.all_ray_origins[index]
         image_pixels = self.images[index]
         
         if self.n_iter < self.precrop_iter:
             
+            # [nrays//4, 3] first 500 iters center crop images
             ray_dirs = ray_dirs[self.precrop_index]
             ray_origins = ray_origins[self.precrop_index]
             image_pixels = image_pixels[self.precrop_index]
         
+        # random select nrays_per_iter rays for each iteration
         nrays = self.nrays_per_iter
         select_inds = np.random.choice(ray_dirs.shape[0], [nrays], replace=False)
         

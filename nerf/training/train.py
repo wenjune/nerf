@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-04 20:55:49
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-05 14:18:38
+LastEditTime: 2024-04-07 00:26:22
 FilePath: train.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
