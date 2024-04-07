@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 16:45:44
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 00:48:00
+LastEditTime: 2024-04-07 20:10:19
 FilePath: nerf.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -181,9 +181,12 @@ class PLNeRF(pl.LightningModule):
         )
         
     
-    def forward(self, batch):
-        
-        ray_dirs, ray_origins, image_pixels = batch
+    def forward(
+        self,
+        ray_dirs: TensorType['nrays', 3, float],
+        ray_origins: TensorType['nrays', 3, float],
+        image_pixels: TensorType['nrays', 3, float],
+    ):
         
         # mixed images  [bs*nrays, 3]
         ray_dirs = ray_dirs.view(-1, 3)
@@ -208,8 +211,12 @@ class PLNeRF(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         
         ray_dirs, ray_origins, image_pixels = batch
+        # mixed images  [bs*nrays, 3]
+        ray_dirs = ray_dirs.view(-1, 3)
+        ray_origins = ray_origins.view(-1, 3)
+        image_pixels = image_pixels.view(-1, 3)
         
-        coarse, fine = self(batch)
+        coarse, fine = self(ray_dirs, ray_origins, image_pixels)
         
         coarse_rgb, coarse_depth, coarse_accm, coarse_weights = coarse
         fine_rgb, fine_depth, fine_accm, fine_weights = fine
@@ -217,7 +224,7 @@ class PLNeRF(pl.LightningModule):
         coarse_loss = ((coarse_rgb - image_pixels)**2).mean()
         fine_loss = ((fine_rgb - image_pixels)**2).mean()
         
-        psnr = -10. * torch.log(fine_loss.detach()) / torch.log(10.)
+        psnr = -10. * torch.log(fine_loss.detach()) / torch.log(torch.tensor(10.))
         
         train_loss = coarse_loss + fine_loss
         
@@ -234,11 +241,15 @@ class PLNeRF(pl.LightningModule):
         
         self.eval()
         with torch.no_grad():
-            
+
             # [nrays, 3]
             ray_dirs, ray_origins, image_pixels = batch
+            # mixed images  [bs*nrays, 3]
+            ray_dirs = ray_dirs.view(-1, 3)
+            ray_origins = ray_origins.view(-1, 3)
+            image_pixels = image_pixels.view(-1, 3)
         
-            coarse, fine = self(batch)
+            coarse, fine = self(ray_dirs, ray_origins, image_pixels)
             
             coarse_rgb, coarse_depth, coarse_accm, coarse_weights = coarse
             fine_rgb, fine_depth, fine_accm, fine_weights = fine
@@ -246,7 +257,7 @@ class PLNeRF(pl.LightningModule):
             coarse_loss = ((coarse_rgb - image_pixels)**2).mean()
             fine_loss = ((fine_rgb - image_pixels)**2).mean()
             
-            psnr = -10. * torch.log(fine_loss.detach()) / torch.log(10.)
+            psnr = -10. * torch.log(fine_loss.detach()) / torch.log(torch.tensor(10.))
             
             val_loss = coarse_loss + fine_loss
             
@@ -255,6 +266,15 @@ class PLNeRF(pl.LightningModule):
             
             return val_loss
         
+    
+    def predict_step(self, batch, batch_idx) -> torch.Any:
+        
+        self.eval()
+        with torch.no_grad():
+            
+            ...
+
+
         
     def configure_optimizers(self):
         
@@ -300,6 +320,7 @@ class PLNeRF(pl.LightningModule):
         rays = ray_oris[..., None, :] + ray_dirs[..., None, :] * z_vals[..., :, None]
         
         fine_rgb, fine_sigma = self.fine_model(rays, view_dirs)
+        fine_sigma = fine_sigma.squeeze(dim=-1)
         
         fine_rgb, fine_depth, fine_accm, fine_weights = self.volume_rendering(
             sigma=fine_sigma,
@@ -393,8 +414,7 @@ class PLNeRF(pl.LightningModule):
         
         inds_g = torch.stack([below, above], dim=-1)
         
-        # TODO
-        matched_shape = [inds_g.shape[0], inds_g.shape[1], inds_g.shape[2]]
+        matched_shape = [inds_g.shape[0], inds_g.shape[1], cdf.shape[-1]]
         cdf_g = torch.gather(cdf.unsqueeze(1).expand(matched_shape), 2, inds_g)
         bins_g = torch.gather(bins.unsqueeze(1).expand(matched_shape), 2, inds_g)
         

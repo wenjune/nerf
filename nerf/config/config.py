@@ -1,3 +1,13 @@
+'''
+Author: wenjun-VCC
+Date: 2024-04-04 20:53:50
+LastEditors: wenjun-VCC
+LastEditTime: 2024-04-07 21:15:24
+FilePath: config.py
+Description: __discription:__
+Email: wenjun.9707@gmail.com
+Copyright (c) 2024 by wenjun/VCC, All Rights Reserved. 
+'''
 from dataclasses import dataclass
 import sys
 import os
@@ -9,7 +19,7 @@ current_time = datetime.now().strftime("%Y%m%d%H")
 if sys.platform.startswith('win32'):
     ROOT_PATH = 'E:/00_Code/VSCode/Python/nerf/nerf'
 else:
-    ROOT_PATH = '/mnt/d/code/nerf'
+    ROOT_PATH = '/mnt/d/code/nerf/nerf'
 
 @dataclass
 class NeRFConfig:
@@ -18,15 +28,18 @@ class NeRFConfig:
     wandb_project='polygen-reproduce'
     wandb_name='vertex-model'
 
-    root = 'E:/00_Code/VSCode/Python/nerf/nerf/data/nerf_synthetic/lego/'
+    root = os.path.join(ROOT_PATH, '/data/nerf_synthetic/lego/')
     
-    max_epoch: int=10000
-    warmup_epoch: int=int(max_epoch*0.1)
-    nrays_per_iter: int=512  # n rays for each images per iter
-    half_res: bool=True
-    batch_size: int=16  # n images per iter
+    max_epoch: int=300
+    warmup_epoch: int=10
+    replica: int=50
+    nrays_per_iter: int=1024  # n rays for each images per iter
+    nrays_per_iter_test :int=3200
+    nangles: int=120
+    half_res: bool=False
+    batch_size: int=8  # n images per iter
     nworks: int=0
-    learning_rate: float=2e-4
+    learning_rate: float=5e-4
     min_lr: float=5e-6
     
     ckpt_path: str=None

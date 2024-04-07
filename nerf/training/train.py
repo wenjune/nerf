@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-04 20:55:49
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 00:26:22
+LastEditTime: 2024-04-07 21:16:32
 FilePath: train.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -15,7 +15,7 @@ import sys
 if sys.platform.startswith('win32'):
     root_path = 'E:/00_Code/VSCode/Python/nerf/nerf'
 else:
-    root_path = '/mnt/d/code/nerf'
+    root_path = '/mnt/d/code/nerf/nerf'
 sys.path.append(root_path)
 
 
@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser(description='AutoEncoder')
 # log parser
 parser.add_argument('--wandb', default=False, help='if use wandb to log', type=bool)
 # data parser
-parser.add_argument('--batch_size', default=8, help='batch size', type=int)
+parser.add_argument('--batch_size', default=4, help='batch size', type=int)
 parser.add_argument('--nworks', default=0, help='num_works for dataloader', type=int)
 # strategy parser
 parser.add_argument('--accelerator', default='auto', help='you can use cpu for debug', type=str)
@@ -97,7 +97,7 @@ def nerf(config, model, datamodel):
         datamodule=datamodel,
         ckpt_path=config.resume,
     )
-
+    
 
 
 
@@ -113,3 +113,6 @@ if __name__ == '__main__':
     nerf(config=config, datamodel=datamodel, model=model)
     
     print('nerf debug...')
+    
+    
+    
