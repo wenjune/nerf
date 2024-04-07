@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 11:47:19
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 21:14:15
+LastEditTime: 2024-04-07 23:55:12
 FilePath: data_module.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -101,7 +101,7 @@ class NerfDataset(Dataset):
         self.nrays_per_iter = nrays_per_iter
         self.num_images = len(self.images)
         
-        self.precrop_iter = 500
+        self.precrop_iter = int(self.num_images * 10)
         self.precrop_frac = 0.5
         self.n_iter = 0
         self.replicate = replicate

@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-04 20:53:50
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 21:15:24
+LastEditTime: 2024-04-07 23:58:10
 FilePath: config.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -25,12 +25,12 @@ else:
 class NeRFConfig:
     
     # for log record
-    wandb_project='polygen-reproduce'
-    wandb_name='vertex-model'
+    wandb_project='nerf-reproduce'
+    wandb_name='nerf-synthetic-lego'
 
-    root = os.path.join(ROOT_PATH, '/data/nerf_synthetic/lego/')
+    root = os.path.join(ROOT_PATH, 'data/nerf_synthetic/lego')
     
-    max_epoch: int=300
+    max_epoch: int=100
     warmup_epoch: int=10
     replica: int=50
     nrays_per_iter: int=1024  # n rays for each images per iter
