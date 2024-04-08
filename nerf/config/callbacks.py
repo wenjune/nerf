@@ -13,7 +13,6 @@ from pytorch_lightning import Callback, LightningModule, Trainer
 import math
 import os
 import pickle
-import numpy as np
 
 
 class LearningRateWarmupCosineDecayCallback(Callback):

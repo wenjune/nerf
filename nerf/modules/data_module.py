@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 11:47:19
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 23:55:12
+LastEditTime: 2024-04-08 17:58:35
 FilePath: data_module.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -14,7 +14,6 @@ import cv2
 import imageio
 import numpy as np
 
-from pytorch_lightning.utilities.types import EVAL_DATALOADERS
 from torch.utils.data import Dataset, DataLoader
 import torch
 from einops import rearrange, repeat, reduce
@@ -243,7 +242,7 @@ class NerfTestDataset(Dataset):
         if self.mode == 'test':
             image_pixels = self.images[index]
         else:
-            image_pixels = None
+            image_pixels = torch.tensor([0])
         
         return ray_dirs, ray_origins, image_pixels
     

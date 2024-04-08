@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 16:45:44
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-08 10:53:31
+LastEditTime: 2024-04-08 20:03:51
 FilePath: nerf.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -11,11 +11,9 @@ Copyright (c) 2024 by wenjun/VCC, All Rights Reserved.
 import torch.nn as nn
 import torch
 from torchtyping import TensorType
-from einops import rearrange, repeat, reduce
+from einops import rearrange, repeat
 import pytorch_lightning as pl
 # from beartype import beartype
-import math
-import torch.nn.functional as F
 
 
 class FourierEmbedder(nn.Module):
@@ -301,7 +299,7 @@ class PLNeRF(pl.LightningModule):
         with torch.no_grad():
             
             # [nrays, 3]
-            ray_dirs, ray_origins = batch
+            ray_dirs, ray_origins, _ = batch
             ray_dirs = ray_dirs.view(-1, 3)
             ray_origins = ray_origins.view(-1, 3)
         
