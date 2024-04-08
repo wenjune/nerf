@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 16:45:44
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-08 20:03:51
+LastEditTime: 2024-04-08 21:57:49
 FilePath: nerf.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -133,7 +133,7 @@ class NeRF(nn.Module):
         
         x_embed = self.in_layer(pos_embed).relu()
         
-        mlp_out = self.first_mlp(x_embed).relu()
+        mlp_out = self.first_mlp(x_embed)
         
         x = torch.cat([pos_embed, mlp_out], dim=-1)
         mlp_out = self.middle_layer(x).relu()

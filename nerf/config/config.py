@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-04 20:53:50
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-08 20:41:06
+LastEditTime: 2024-04-08 21:53:02
 FilePath: config.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -48,30 +48,30 @@ class NeRFConfig:
     resume: str=None
     
     # model config
-    dims = 256
-    depth=8
+    dims=256
+    depth=10
     is_fourier=True
-    pe_dim=10
+    pe_dim=12
     view_depend=True
-    view_dim=4
+    view_dim=6
     
     # coarse to fine
     sample1: int=64
-    sample2: int=128
+    sample2: int=192
     
     # test and predict strategy
     nrays_per_iter_test :int=6400  # recommend 6400 or 3200 for 800*800 image
     groups: int=H*W//nrays_per_iter_test  # n groups for one images
     # how many images(angles) you want to generate for 360 synthetic views
-    nangles: int=120
-    # pkl folder for get image
-    pkl_path: str='E:/00_Code/VSCode/Python/nerf/nerf/results/NeRF_inf_pkl_2024040820/synthetic_360_save'
+    nangles: int=360
     # image save path in data_process.py
-    image_save_path: str=os.path.join(ROOT_PATH, 'results', f'NeRF_inf_image_{current_time}') 
+    image_save_path: str=os.path.join(ROOT_PATH, 'results', wandb_name, 'inf_image') 
     # where to save the pkl files in test and predict
-    inf_save_path: str=os.path.join(ROOT_PATH, 'results', f'NeRF_inf_pkl_{current_time}')
+    inf_save_path: str=os.path.join(ROOT_PATH, 'results', wandb_name, 'inf_pkl')
     # ckpt path for test and predict
-    ckpt_path: str='E:/00_Code/VSCode/Python/nerf/nerf/results/epoch=92-val_loss=0.02.ckpt'
+    ckpt_path: str=None
+    # pkl folder for get image
+    pkl_path: str=None
     
     # ckpt config
     save_top_k: int=3
