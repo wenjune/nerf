@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-05 08:02:31
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-05 08:02:53
+LastEditTime: 2024-04-08 10:51:54
 FilePath: callbacks.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -66,5 +66,80 @@ class LearningRateWarmupCosineDecayCallback(Callback):
         # Set the learning rate to the optimizer
         for pg in trainer.optimizers[0].param_groups:
             pg['lr'] = lr
+
+
+class ModelCallbacks(Callback):
+    
+    def __init__(
+        self,
+        save_path,
+    ) -> None:
+        super(ModelCallbacks, self).__init__()
+        
+        self.save_path = save_path
+        
+    
+    def on_test_batch_end(self, trainer: Trainer, pl_module: LightningModule, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        
+        # output: coarse, fine
+        coarse, fine = outputs
+        coarse_rgb, coarse_depth, _, _ = coarse
+        fine_rgb, fine_depth, _, _ = fine
+        
+        if coarse_rgb.device != 'cpu':
+            # set device
+            coarse_rgb = coarse_rgb.cpu()
+            coarse_depth = coarse_depth.cpu()
+            fine_rgb = fine_rgb.cpu()
+            fine_depth = fine_depth.cpu()
+        
+        results = {
+            'coarse_rgb': coarse_rgb.numpy(),
+            'coarse_depth': coarse_depth.numpy(),
+            'fine_rgb': fine_rgb.numpy(),
+            'fine_depth': fine_depth.numpy(),
+        }
+        
+        save_path = os.path.join(self.save_path, 'test_save')
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+            
+        save_path = os.path.join(save_path, 'batch{:07d}.pkl'.format(batch_idx))
+        # Write the results dictionary to the pkl file
+        with open(save_path, "wb") as f:
+            pickle.dump(results, f)
+    
+    
+    
+    def on_predict_batch_end(self, trainer: Trainer, pl_module: LightningModule, outputs: Any, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        
+        # output: coarse, fine
+        coarse, fine = outputs
+        coarse_rgb, coarse_depth, _, _ = coarse
+        fine_rgb, fine_depth, _, _ = fine
+        
+        if coarse_rgb.device != 'cpu':
+            # set device
+            coarse_rgb = coarse_rgb.cpu()
+            coarse_depth = coarse_depth.cpu()
+            fine_rgb = fine_rgb.cpu()
+            fine_depth = fine_depth.cpu()
+        
+        results = {
+            'coarse_rgb': coarse_rgb.numpy(),
+            'coarse_depth': coarse_depth.numpy(),
+            'fine_rgb': fine_rgb.numpy(),
+            'fine_depth': fine_depth.numpy(),
+        }
+        
+        save_path = os.path.join(self.save_path, 'synthetic_360_save')
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+            
+        save_path = os.path.join(save_path, 'batch{:07d}.pkl'.format(batch_idx))
+        # Write the results dictionary to the pkl file
+        with open(save_path, "wb") as f:
+            pickle.dump(results, f)
+
 
 

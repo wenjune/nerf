@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-03 16:45:44
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 20:10:19
+LastEditTime: 2024-04-08 10:53:31
 FilePath: nerf.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -185,13 +185,11 @@ class PLNeRF(pl.LightningModule):
         self,
         ray_dirs: TensorType['nrays', 3, float],
         ray_origins: TensorType['nrays', 3, float],
-        image_pixels: TensorType['nrays', 3, float],
     ):
         
         # mixed images  [bs*nrays, 3]
         ray_dirs = ray_dirs.view(-1, 3)
         ray_origins = ray_origins.view(-1, 3)
-        image_pixels = image_pixels.view(-1, 3)
         
         # average sample z values for each ray
         sample_z_vals = torch.linspace(
@@ -216,7 +214,7 @@ class PLNeRF(pl.LightningModule):
         ray_origins = ray_origins.view(-1, 3)
         image_pixels = image_pixels.view(-1, 3)
         
-        coarse, fine = self(ray_dirs, ray_origins, image_pixels)
+        coarse, fine = self(ray_dirs, ray_origins)
         
         coarse_rgb, coarse_depth, coarse_accm, coarse_weights = coarse
         fine_rgb, fine_depth, fine_accm, fine_weights = fine
@@ -249,7 +247,7 @@ class PLNeRF(pl.LightningModule):
             ray_origins = ray_origins.view(-1, 3)
             image_pixels = image_pixels.view(-1, 3)
         
-            coarse, fine = self(ray_dirs, ray_origins, image_pixels)
+            coarse, fine = self(ray_dirs, ray_origins)
             
             coarse_rgb, coarse_depth, coarse_accm, coarse_weights = coarse
             fine_rgb, fine_depth, fine_accm, fine_weights = fine
@@ -267,12 +265,51 @@ class PLNeRF(pl.LightningModule):
             return val_loss
         
     
+    def test_step(self, batch, batch_idx):
+        
+        self.eval()
+        with torch.no_grad():
+
+            # [nrays, 3]
+            ray_dirs, ray_origins, image_pixels = batch
+            # mixed images  [bs*nrays, 3]
+            ray_dirs = ray_dirs.view(-1, 3)
+            ray_origins = ray_origins.view(-1, 3)
+            image_pixels = image_pixels.view(-1, 3)
+        
+            coarse, fine = self(ray_dirs, ray_origins)
+            
+            coarse_rgb, coarse_depth, coarse_accm, coarse_weights = coarse
+            fine_rgb, fine_depth, fine_accm, fine_weights = fine
+            
+            coarse_loss = ((coarse_rgb - image_pixels)**2).mean()
+            fine_loss = ((fine_rgb - image_pixels)**2).mean()
+            
+            psnr = -10. * torch.log(fine_loss.detach()) / torch.log(torch.tensor(10.))
+            
+            test_loss = coarse_loss + fine_loss
+            
+            self.log("test_loss", test_loss, on_step=True, sync_dist=True, prog_bar=True)
+            self.log("test_psnr", psnr, on_step=True, sync_dist=True, prog_bar=True)
+            
+            return coarse, fine
+        
+    
     def predict_step(self, batch, batch_idx) -> torch.Any:
         
         self.eval()
         with torch.no_grad():
             
-            ...
+            # [nrays, 3]
+            ray_dirs, ray_origins = batch
+            ray_dirs = ray_dirs.view(-1, 3)
+            ray_origins = ray_origins.view(-1, 3)
+        
+            coarse, fine = self(ray_dirs, ray_origins)
+            
+            # coarse_rgb, coarse_depth, coarse_accm, coarse_weights = coarse
+            # fine_rgb, fine_depth, fine_accm, fine_weights = fine
+            return coarse, fine
 
 
         

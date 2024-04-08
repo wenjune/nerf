@@ -2,7 +2,7 @@
 Author: wenjun-VCC
 Date: 2024-04-04 20:55:49
 LastEditors: wenjun-VCC
-LastEditTime: 2024-04-07 21:16:32
+LastEditTime: 2024-04-08 10:12:10
 FilePath: train.py
 Description: __discription:__
 Email: wenjun.9707@gmail.com
@@ -10,7 +10,6 @@ Copyright (c) 2024 by wenjun/VCC, All Rights Reserved.
 '''
 import os
 import sys
-
 
 if sys.platform.startswith('win32'):
     root_path = 'E:/00_Code/VSCode/Python/nerf/nerf'
@@ -30,6 +29,7 @@ parser = argparse.ArgumentParser(description='AutoEncoder')
 
 # log parser
 parser.add_argument('--wandb', default=False, help='if use wandb to log', type=bool)
+parser.add_argument('--mode', default='train', help='trainer mode', type=str)
 # data parser
 parser.add_argument('--batch_size', default=4, help='batch size', type=int)
 parser.add_argument('--nworks', default=0, help='num_works for dataloader', type=int)
@@ -44,7 +44,7 @@ args = parser.parse_args()
 from modules.data_module import DataModule
 from config.config import NeRFConfig
 from modules.nerf import PLNeRF
-from config.callbacks import LearningRateWarmupCosineDecayCallback
+from config.callbacks import LearningRateWarmupCosineDecayCallback, ModelCallbacks
 
 
 
@@ -74,6 +74,10 @@ def nerf(config, model, datamodel):
         total_epochs=config.max_epoch,
     )
     
+    inf_callback = ModelCallbacks(
+        save_path=config.inf_save_path,
+    )
+    
     trainer = pl.Trainer(
         accelerator=args.accelerator,
         strategy=args.strategy,
@@ -87,16 +91,32 @@ def nerf(config, model, datamodel):
         log_every_n_steps=5,
         callbacks=[lr_scheduler_callback,
                    checkpoint_callback_top_k,
-                   checkpoint_callback_every_n_epochs],
+                   checkpoint_callback_every_n_epochs,
+                   inf_callback],
         gradient_clip_val=5.,
         gradient_clip_algorithm='norm',
     )
     
-    trainer.fit(
-        model=model,
-        datamodule=datamodel,
-        ckpt_path=config.resume,
-    )
+    if args.mode == 'train':
+        trainer.fit(
+            model=model,
+            datamodule=datamodel,
+            ckpt_path=config.resume,
+        )
+    
+    if args.mode == 'test':
+        trainer.test(
+            model=model,
+            datamodule=datamodel,
+            ckpt_path=config.ckpt_path,
+        )
+        
+    if args.mode == 'predict':
+        trainer.predict(
+            model=model,
+            datamodule=datamodel,
+            ckpt_path=config.ckpt_path,
+        )
     
 
 
